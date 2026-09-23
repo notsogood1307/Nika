@@ -53,3 +53,10 @@ python main.py
 The application will automatically create the necessary database tables (`facts` and `conversation_log`) on startup if they don't already exist.
 
 Type `exit` during the chat loop to gracefully quit.
+
+## Phase 2: Voice Input/Output
+
+Phase 2 adds push-to-talk voice input and spoken output. 
+
+**Note on Windows:** The `keyboard` library is used to detect the hotkey (Spacebar) globally. You may need to run the script as Administrator on Windows for the hotkey detection to work properly.
+**Note on Whisper:** On the first run, the `faster-whisper` model will be downloaded automatically. This is a one-time delay.

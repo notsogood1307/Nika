@@ -1,2 +1,7 @@
 openai
 python-dotenv
+faster-whisper
+pyttsx3
+keyboard
+sounddevice
+soundfile

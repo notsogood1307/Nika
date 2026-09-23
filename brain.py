@@ -1,6 +1,7 @@
 import config
 from openai import OpenAI, RateLimitError
 import logging
+import re
 
 logging.basicConfig(filename="debug.log", level=logging.DEBUG)
 
@@ -49,10 +50,17 @@ def get_response(user_message: str, memory_context: str, recent_history: list) -
         logging.debug(f"Sending messages: {messages}")
         response = client.chat.completions.create(
             model=config.MODEL_NAME,
-            messages=messages
+            messages=messages,
+            extra_body={"reasoning_format": "hidden"}
         )
-        logging.debug(f"Received: {response.choices[0].message.content}")
-        return response.choices[0].message.content
+        
+        reply_text = response.choices[0].message.content
+        logging.debug(f"Received raw: {reply_text}")
+        
+        # Strip any <think>...</think> blocks safely as a fallback
+        reply_text = re.sub(r"<think>.*?</think>", "", reply_text, flags=re.DOTALL).strip()
+        
+        return reply_text
     except RateLimitError:
         return "I hit a rate limit just now, give me a second to catch my breath."
     except Exception as e:

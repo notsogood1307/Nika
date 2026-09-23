@@ -10,6 +10,10 @@ BASE_URL = os.getenv("BASE_URL")
 MODEL_NAME = os.getenv("MODEL_NAME")
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Optional Phase 2 configurations
+WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
+
 # Validate that all required variables are set
 missing_vars = []
 if not API_KEY:
