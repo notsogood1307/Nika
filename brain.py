@@ -11,6 +11,12 @@ client = OpenAI(
     base_url=config.BASE_URL
 )
 
+# Initialize a separate client for Vision so you can mix-and-match providers
+vision_client = OpenAI(
+    api_key=config.VISION_API_KEY,
+    base_url=config.VISION_BASE_URL
+)
+
 # Nika's personality system prompt
 SYSTEM_PROMPT = """You are Nika, a warm, capable personal assistant who talks like a genuine 
 friend rather than a formal chatbot — casual, direct, a little witty, never sycophantic. 
@@ -67,3 +73,46 @@ def get_response(user_message: str, memory_context: str, recent_history: list) -
         # Catch other API errors to prevent crashing the loop
         logging.exception("API call failed")
         return f"Whoops, I ran into an issue connecting to my brain: {e}"
+
+def get_response_with_screen(user_message: str, memory_context: str, recent_history: list, screenshot_b64: str) -> str:
+    """
+    Sends the system prompt, memory facts, recent history, new user message and screen capture to the vision LLM.
+    """
+    full_system_prompt = SYSTEM_PROMPT
+    if memory_context:
+        full_system_prompt += "\n\nHere are some things you know about the user and past interactions:\n"
+        full_system_prompt += memory_context
+
+    messages = [
+        {"role": "system", "content": full_system_prompt}
+    ]
+    
+    for role, content in recent_history:
+        messages.append({"role": role, "content": content})
+        
+    messages.append({
+        "role": "user", 
+        "content": [
+            {"type": "text", "text": user_message},
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}}
+        ]
+    })
+    
+    try:
+        logging.debug(f"Sending vision messages: {messages}")
+        response = vision_client.chat.completions.create(
+            model=config.VISION_MODEL_NAME,
+            messages=messages
+        )
+        
+        reply_text = response.choices[0].message.content
+        logging.debug(f"Received raw vision: {reply_text}")
+        
+        reply_text = re.sub(r"<think>.*?</think>", "", reply_text, flags=re.DOTALL).strip()
+        
+        return reply_text
+    except RateLimitError:
+        return "I hit a rate limit just now, give me a second to catch my breath."
+    except Exception as e:
+        logging.exception("Vision API call failed")
+        return f"Whoops, I ran into an issue connecting to my visual brain: {e}"

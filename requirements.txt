@@ -5,3 +5,5 @@ pyttsx3
 keyboard
 sounddevice
 soundfile
+mss
+Pillow

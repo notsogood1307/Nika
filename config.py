@@ -14,6 +14,11 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "base")
 WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")
 
+# Optional Phase 3 configurations
+VISION_MODEL_NAME = os.getenv("VISION_MODEL_NAME", "gemini-3.6-flash")
+VISION_API_KEY = os.getenv("VISION_API_KEY", API_KEY)
+VISION_BASE_URL = os.getenv("VISION_BASE_URL", BASE_URL)
+
 # Validate that all required variables are set
 missing_vars = []
 if not API_KEY:

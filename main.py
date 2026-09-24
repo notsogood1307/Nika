@@ -7,6 +7,7 @@ import db
 import memory
 import brain
 import voice_io
+import screen_capture
 
 def get_mixed_input():
     print("\nHold [SPACE] to talk, or just type and press Enter, or type 'exit' to quit.")
@@ -84,8 +85,14 @@ def main():
             facts = memory.get_all_facts()
             history = memory.get_recent_history(n=10)
             
-            # Get Nika's response
-            response = brain.get_response(user_input, facts, history)
+            # Get Nika's response based on keywords
+            vision_keywords = ["look at my screen", "what's on my screen", "what do you see"]
+            if any(kw in user_input.lower() for kw in vision_keywords):
+                print("[Looking at your screen...]")
+                screenshot_b64 = screen_capture.capture_screen()
+                response = brain.get_response_with_screen(user_input, facts, history, screenshot_b64)
+            else:
+                response = brain.get_response(user_input, facts, history)
             
             # Print and speak response
             print(f"\nNika: {response}")
