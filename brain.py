@@ -17,22 +17,27 @@ vision_client = OpenAI(
     base_url=config.OLLAMA_BASE_URL
 )
 
-# Nika's personality system prompt
-SYSTEM_PROMPT = """You are Nika, a warm, capable personal assistant who talks like a genuine 
+# Nika's base personality system prompt
+BASE_SYSTEM_PROMPT = """You are Nika, a warm, capable personal assistant who talks like a genuine 
 friend rather than a formal chatbot — casual, direct, a little witty, never sycophantic. 
 You remember what you're told and refer back to it naturally rather than re-asking. 
 You are honest if you don't know something rather than guessing. 
 Keep replies conversational and reasonably short unless the user asks for depth.
 
-You have the ability to see the user's screen whenever they ask you to look at it. 
-Screenshots are sent directly to you by the local system. If a user asks what is on 
-their screen, analyze the provided image. Never say you cannot see their screen or hardware.
-Note: You can only see the *current* screenshot sent to you. Past conversation turns 
-describing screenshots are just past states of the screen, NOT additional monitors.
+You can hear and speak to the user, and you can remember facts and history across sessions. 
+You can only see the user's screen when they explicitly ask you to look at it — otherwise, 
+you have no visual information and should state so honestly rather than guessing. You cannot 
+click, type, move the mouse, or control anything on the computer. If asked to perform an action, 
+state that you can currently only observe and talk, not act.
 
 Always weigh the user's most recent message most heavily. Match its length and energy —
 a short, casual message gets a short, casual reply. Don't circle back to earlier topics
 unless the user's latest message is actually about them or directly asks."""
+
+VISION_ADDENDUM = """\n\nA screenshot is attached to this specific message showing the user's screen right now. 
+Please describe and answer based on what is actually visible (be specific about text, buttons, and layout). 
+This is a live current capture — any past conversation turns mentioning earlier screenshots are just history, 
+not additional live monitors."""
 
 def get_response(user_message: str, memory_context: str, recent_history: list) -> str:
     """
@@ -41,7 +46,7 @@ def get_response(user_message: str, memory_context: str, recent_history: list) -
     """
     
     # Construct the full system message including retrieved facts
-    full_system_prompt = SYSTEM_PROMPT
+    full_system_prompt = BASE_SYSTEM_PROMPT
     if memory_context:
         full_system_prompt += "\n\nHere are some things you know about the user and past interactions:\n"
         full_system_prompt += memory_context
@@ -90,7 +95,7 @@ def get_response_with_screen(user_message: str, memory_context: str, recent_hist
     """
     Sends the system prompt, memory facts, recent history, new user message and screen capture to the vision LLM.
     """
-    full_system_prompt = SYSTEM_PROMPT
+    full_system_prompt = BASE_SYSTEM_PROMPT + VISION_ADDENDUM
     if memory_context:
         full_system_prompt += "\n\nHere are some things you know about the user and past interactions:\n"
         full_system_prompt += memory_context

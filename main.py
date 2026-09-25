@@ -81,6 +81,14 @@ def main():
     except Exception:
         print("Warning: Ollama doesn't seem to be running — screen perception won't work until it's started.")
 
+    try:
+        monitors = screen_capture.list_monitors()
+        print(f"\nDetected {len(monitors)} monitor(s):")
+        for m in monitors:
+            print(f"  - Monitor {m['index']}: {m['width']}x{m['height']} at (Left: {m['left']}, Top: {m['top']})")
+    except Exception as e:
+        print(f"\nCould not detect monitors: {e}")
+
     print("\nNika is online. Type 'exit' to quit.")
     print("-" * 50)
     
