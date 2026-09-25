@@ -4,10 +4,29 @@ import base64
 import os
 from PIL import Image
 
-def capture_screen() -> str:
+def list_monitors() -> list:
     with mss.mss() as sct:
-        # Grab the primary monitor (monitor 1)
-        monitor = sct.monitors[1]
+        # mss.monitors[0] is the virtual "all monitors" bounding box.
+        # Real monitors start at index 1.
+        monitors = []
+        for idx, monitor in enumerate(sct.monitors[1:], start=1):
+            monitors.append({
+                "index": idx,
+                "width": monitor["width"],
+                "height": monitor["height"],
+                "left": monitor["left"],
+                "top": monitor["top"]
+            })
+        return monitors
+
+def capture_screen(monitor_index: int = 1) -> str:
+    with mss.mss() as sct:
+        # Grab the specified monitor
+        try:
+            monitor = sct.monitors[monitor_index]
+        except IndexError:
+            # Fallback if invalid monitor index
+            monitor = sct.monitors[1]
         screenshot = sct.grab(monitor)
         
         # Convert to PIL Image

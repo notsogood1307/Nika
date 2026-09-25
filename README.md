@@ -60,3 +60,11 @@ Phase 2 adds push-to-talk voice input and spoken output.
 
 **Note on Windows:** The `keyboard` library is used to detect the hotkey (Spacebar) globally. You may need to run the script as Administrator on Windows for the hotkey detection to work properly.
 **Note on Whisper:** On the first run, the `faster-whisper` model will be downloaded automatically. This is a one-time delay.
+
+## Phase 3: Screen Perception with Ollama
+
+Nika can now look at your screen using a local vision model! This keeps your screen data completely private.
+1. Install [Ollama](https://ollama.com/) and make sure it is running (it usually starts automatically as a background service).
+2. Pull the default vision model by running: `ollama pull moondream` (or update `OLLAMA_VISION_MODEL` in your `.env` to use another vision model).
+
+If Ollama is not running, normal text and voice conversations will still work seamlessly without interruption.
