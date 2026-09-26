@@ -41,7 +41,7 @@ def get_recent_history(n: int = 10) -> list:
     with db.get_connection() as conn:
         # Fetch the latest n messages, then reverse them to be in chronological order
         cursor = conn.execute(
-            "SELECT role, content FROM conversation_log ORDER BY timestamp DESC LIMIT ?",
+            "SELECT role, content FROM conversation_log ORDER BY timestamp DESC, id DESC LIMIT ?",
             (n,)
         )
         rows = cursor.fetchall()
@@ -66,7 +66,7 @@ def summarize_if_needed():
             # Fetch the messages to summarize (all except the most recent ones we want to keep)
             messages_to_summarize = count - TRIM_TO
             cursor = conn.execute(
-                "SELECT role, content FROM conversation_log ORDER BY timestamp ASC LIMIT ?",
+                "SELECT role, content FROM conversation_log ORDER BY timestamp ASC, id ASC LIMIT ?",
                 (messages_to_summarize,)
             )
             old_messages = cursor.fetchall()
@@ -77,12 +77,20 @@ def summarize_if_needed():
                 transcript.append(f"{role.capitalize()}: {content}")
             transcript_text = "\n".join(transcript)
             
-            # Use the brain to summarize
+            # Fetch existing summary if any
+            cursor = conn.execute("SELECT value FROM facts WHERE key = 'conversation_summary'")
+            existing_summary_row = cursor.fetchone()
+            existing_summary = existing_summary_row[0] if existing_summary_row else ""
+            
             prompt = (
                 "Please summarize the following conversation history briefly. "
                 "Focus on important facts, preferences, or ongoing context that should be remembered.\n\n"
-                f"{transcript_text}"
             )
+            if existing_summary:
+                prompt += f"Here is the existing summary of older messages:\n{existing_summary}\n\n"
+                prompt += "Please update the summary by incorporating the following new messages:\n\n"
+            
+            prompt += transcript_text
             
             # Call a simple LLM completion without context just for this summary
             # Alternatively, we could reuse the get_response, but we just need a direct answer here.
@@ -96,23 +104,22 @@ def summarize_if_needed():
                 )
                 summary_text = response.choices[0].message.content
                 
-                # Store the summary as a fact
-                conn.execute(
-                    "INSERT INTO facts (key, value) VALUES (?, ?)",
-                    ("Conversation Summary", summary_text)
-                )
+                # Store the summary as a fact (Update if exists, else insert)
+                cursor = conn.execute("UPDATE facts SET value = ? WHERE key = ?", (summary_text, "conversation_summary"))
+                if cursor.rowcount == 0:
+                    conn.execute("INSERT INTO facts (key, value) VALUES (?, ?)", ("conversation_summary", summary_text))
                 
                 # Delete the summarized messages
-                # Find the timestamp of the last message we summarized
+                # Find the id of the last message we summarized
                 cursor = conn.execute(
-                    "SELECT timestamp FROM conversation_log ORDER BY timestamp ASC LIMIT 1 OFFSET ?",
+                    "SELECT id FROM conversation_log ORDER BY timestamp ASC, id ASC LIMIT 1 OFFSET ?",
                     (messages_to_summarize - 1,)
                 )
-                cutoff_time = cursor.fetchone()[0]
+                cutoff_id = cursor.fetchone()[0]
                 
                 conn.execute(
-                    "DELETE FROM conversation_log WHERE timestamp <= ?",
-                    (cutoff_time,)
+                    "DELETE FROM conversation_log WHERE id <= ?",
+                    (cutoff_id,)
                 )
                 
                 conn.commit()

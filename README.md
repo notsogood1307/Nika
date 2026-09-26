@@ -68,3 +68,14 @@ Nika can now look at your screen using a local vision model! This keeps your scr
 2. Pull the default vision model by running: `ollama pull moondream` (or update `OLLAMA_VISION_MODEL` in your `.env` to use another vision model).
 
 If Ollama is not running, normal text and voice conversations will still work seamlessly without interruption.
+
+## Phase 4: Local Actions and Guardrails
+
+Nika can now take real actions on your PC! To keep you safe, this operates under strict limits:
+- **Global Kill Switch:** Press **Ctrl+Shift+Esc** at any time to instantly cancel an ongoing action sequence.
+- **Whitelist Only:** The `open_app` action can *only* launch commands explicitly allowed in `actions.py`. The defaults are `notepad`, `calculator`, and `browser`.
+
+Action requests are routed through a 3-tier risk system:
+- **Tier 1 (Safe):** Executes immediately (e.g., opening an app).
+- **Tier 2 (Moderate):** Requires user confirmation the first time. You can say "always allow" to skip the prompt for the rest of the session (e.g., typing text, opening URLs).
+- **Tier 3 (High):** Requires explicit confirmation *every single time*. You cannot "always allow" these (e.g., pressing key combinations like Enter or Ctrl+S).

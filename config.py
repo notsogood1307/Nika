@@ -31,3 +31,4 @@ if not DATABASE_URL:
 
 if missing_vars:
     raise ValueError(f"Missing required environment variables in .env file: {', '.join(missing_vars)}")
+

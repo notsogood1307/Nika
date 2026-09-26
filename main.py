@@ -1,4 +1,15 @@
 import sys
+import ctypes
+
+# Make process DPI aware so Windows doesn't lie about scaled monitor resolutions (e.g., 2400x1350 instead of 1920x1080)
+try:
+    ctypes.windll.shcore.SetProcessDpiAwareness(2) # PROCESS_PER_MONITOR_DPI_AWARE
+except Exception:
+    try:
+        ctypes.windll.user32.SetProcessDPIAware()
+    except Exception:
+        pass
+
 import sqlite3
 import time
 import msvcrt
@@ -6,12 +17,15 @@ import keyboard
 import urllib.request
 import json
 import re
+import logging
 import config
 import db
 import memory
 import brain
 import voice_io
 import screen_capture
+import guardrails
+import actions
 
 def get_mixed_input():
     print("\nHold [SPACE] to talk, or just type and press Enter, or type 'exit' to quit.")
@@ -89,6 +103,8 @@ def main():
     except Exception as e:
         print(f"\nCould not detect monitors: {e}")
 
+    guardrails.register_kill_switch()
+
     print("\nNika is online. Type 'exit' to quit.")
     print("-" * 50)
     
@@ -96,6 +112,9 @@ def main():
     
     while True:
         try:
+            # Reset kill switch at start of turn
+            guardrails.reset_kill_switch()
+            
             # Read user input
             user_input = get_mixed_input()
             
@@ -165,7 +184,69 @@ def main():
                 except Exception as e:
                     response = f"I tried to look at monitor {target_monitor}, but ran into an issue: {e}"
             else:
-                response = brain.get_response(user_input, facts, history)
+                intermediate_messages = []
+                
+                for _ in range(5):
+                    message = brain.extract_tool_calls(user_input, intermediate_messages)
+                    
+                    has_tools = bool(getattr(message, 'tool_calls', None))
+                    
+                    if not has_tools:
+                        break
+                        
+                    # Handle tool calls
+                    msg_dict = {"role": "assistant", "content": message.content or ""}
+                    msg_dict["tool_calls"] = [{"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}} for tc in message.tool_calls]
+                    intermediate_messages.append(msg_dict)
+                    
+                    # First, parse and confirm all tools
+                    tools_to_run = []
+                    for tool_call in message.tool_calls:
+                        action_name = tool_call.function.name
+                        try:
+                            args = json.loads(tool_call.function.arguments)
+                        except Exception as e:
+                            logging.exception(f"Tool parsing failed for {action_name}: {tool_call.function.arguments}")
+                            args = {}
+                            
+                        # Request confirmation
+                        approved = guardrails.request_confirmation(
+                            action_name, args, 
+                            get_mixed_input, 
+                            print, 
+                            voice_io.speak
+                        )
+                        tools_to_run.append((tool_call, action_name, args, approved))
+                        
+                    # Then execute all tools
+                    for tool_call, action_name, args, approved in tools_to_run:
+                        if approved:
+                            func = getattr(actions, action_name, None)
+                            if func:
+                                result = func(**args)
+                            else:
+                                result = f"Error: function {action_name} not found."
+                            print(f"\n[Action: {action_name}({args})]")
+                        else:
+                            result = "User declined this action."
+                            print(f"\n[Action Cancelled: {action_name}({args})]")
+                            
+                        logging.info(f"[Action Executed] Name: {action_name} Args: {args} Approved: {approved} Result: {result}")
+                        
+                        intermediate_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": str(result)
+                        })
+                        
+                if intermediate_messages:
+                    failures = [msg["content"] for msg in intermediate_messages if msg.get("role") == "tool" and ("Error" in msg["content"] or "Failed" in msg["content"] or "I don't have" in msg["content"])]
+                    if failures:
+                        response = " ".join(failures)
+                    else:
+                        response = "Done!"
+                else:
+                    response = brain.get_response(user_input, facts, history)
             
             # Print and speak response
             print(f"\nNika: {response}")
@@ -179,6 +260,7 @@ def main():
             print("\nNika: See ya later!")
             break
         except Exception as e:
+            logging.exception("Main loop crashed unexpectedly.")
             print(f"\n[System Error] Something went wrong in the loop: {e}")
 
 if __name__ == "__main__":

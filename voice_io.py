@@ -16,7 +16,7 @@ import numpy as np
 whisper_model = WhisperModel(
     config.WHISPER_MODEL_SIZE, 
     device=config.WHISPER_DEVICE, 
-    compute_type="default"
+    compute_type="int8"
 )
 
 def record_audio() -> str:
@@ -69,6 +69,14 @@ def speak(text: str) -> None:
     # We must initialize per-call because pyttsx3's event loop often hangs 
     # after the first runAndWait() in interactive terminal loops on Windows.
     engine = pyttsx3.init()
+    
+    # Allow the user to cancel speech by pressing ESC or holding SPACE (to start talking)
+    def onWord(name, location, length):
+        if keyboard.is_pressed('space') or keyboard.is_pressed('esc'):
+            engine.stop()
+            
+    engine.connect('started-word', onWord)
+    
     engine.say(text)
     engine.runAndWait()
     # Delete instance to ensure it properly clears from memory/COM
