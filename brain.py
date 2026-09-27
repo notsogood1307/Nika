@@ -2,6 +2,10 @@ import config
 from openai import OpenAI, RateLimitError, APIConnectionError
 import logging
 import re
+import base64
+import io
+from PIL import Image
+import grounding
 
 logging.basicConfig(filename="debug.log", level=logging.DEBUG)
 
@@ -9,12 +13,6 @@ logging.basicConfig(filename="debug.log", level=logging.DEBUG)
 client = OpenAI(
     api_key=config.API_KEY,
     base_url=config.BASE_URL
-)
-
-# Initialize a separate client for Vision so you can mix-and-match providers
-vision_client = OpenAI(
-    api_key="ollama",  # required by the SDK but unused by Ollama
-    base_url=config.OLLAMA_BASE_URL
 )
 
 # Nika's base personality system prompt
@@ -28,9 +26,8 @@ You can hear and speak to the user, and you can remember facts and history acros
 You can only see the user's screen when they explicitly ask you to look at it — otherwise, 
 you have no visual information and should state so honestly rather than guessing. You can 
 open whitelisted apps, type text into the currently focused window, press key combinations, 
-and open URLs. You CANNOT yet click the mouse at specific screen coordinates or interact 
-with specific UI elements by clicking — state this clearly if asked to click. IF ASKED to 
-interact with a window (like selecting text or typing), ASSUME the user has already focused it 
+click specific UI elements by describing them (e.g., "the Save button"), and open URLs. 
+IF ASKED to interact with a window (like selecting text or typing), ASSUME the user has already focused it 
 for you. For multi-step requests (e.g., "select all the text and delete it"), chain the appropriate 
 tool calls (e.g., press_key("ctrl+a") then press_key("delete")) rather than declining or explaining 
 how the user could do it manually.
@@ -103,43 +100,29 @@ def get_response(user_message: str, memory_context: str, recent_history: list) -
 
 def get_response_with_screen(user_message: str, memory_context: str, recent_history: list, screenshot_b64: str) -> str:
     """
-    Sends the system prompt, memory facts, recent history, new user message and screen capture to the vision LLM.
+    Sends the new user message and screen capture to the local vision model via Photon.
     """
-    full_system_prompt = BASE_SYSTEM_PROMPT + VISION_ADDENDUM
-    if memory_context:
-        full_system_prompt += "\n\nHere are some things you know about the user and past interactions:\n"
-        full_system_prompt += memory_context
-
-    messages = [
-        {"role": "system", "content": full_system_prompt}
-    ]
-    
-    for role, content in recent_history:
-        messages.append({"role": role, "content": content})
-        
-    messages.append({
-        "role": "user", 
-        "content": [
-            {"type": "text", "text": user_message},
-            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{screenshot_b64}"}}
-        ]
-    })
-    
     try:
-        logging.debug(f"Sending vision messages: {messages}")
-        response = vision_client.chat.completions.create(
-            model=config.OLLAMA_VISION_MODEL,
-            messages=messages
-        )
+        # Convert base64 screenshot back to PIL Image
+        img_data = base64.b64decode(screenshot_b64)
+        image = Image.open(io.BytesIO(img_data)).convert("RGB")
         
-        reply_text = response.choices[0].message.content
+        # Build the question
+        question = user_message
+        if memory_context:
+            question = f"Memory context:\n{memory_context}\n\nQuestion: {question}"
+            
+        logging.debug(f"Sending vision question: {question}")
+        
+        # Query local vision model
+        reply_text = grounding.describe_screen(image, question)
+        
         logging.debug(f"Received raw vision: {reply_text}")
         
+        # Strip <think> blocks if any
         reply_text = re.sub(r"<think>.*?</think>", "", reply_text, flags=re.DOTALL).strip()
         
         return reply_text
-    except APIConnectionError:
-        return "I can't reach my local vision model — is Ollama running?"
     except Exception as e:
         logging.exception("Vision API call failed")
         return f"Whoops, I ran into an issue connecting to my visual brain: {e}"
@@ -210,6 +193,23 @@ TOOLS = [
                     }
                 },
                 "required": ["url"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "click_element",
+            "description": "Clicks on a specific UI element identified by a natural-language description (e.g. 'the Save button', 'the search bar'). Takes a screenshot of the target monitor, uses vision grounding to locate it, and clicks at the found coordinates.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "The natural-language description of the UI element to click."
+                    }
+                },
+                "required": ["description"]
             }
         }
     }

@@ -8,3 +8,4 @@ soundfile
 mss
 Pillow
 pyautogui
+moondream

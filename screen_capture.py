@@ -55,3 +55,20 @@ def capture_screen(monitor_index: int = 1) -> str:
                 os.remove(temp_path)
             except OSError:
                 pass
+
+def capture_screen_with_metadata(monitor_index: int = 1) -> tuple:
+    with mss.mss() as sct:
+        # Grab the specified monitor
+        try:
+            monitor = sct.monitors[monitor_index]
+        except IndexError:
+            # Fallback if invalid monitor index
+            monitor = sct.monitors[1]
+        screenshot = sct.grab(monitor)
+        
+        # Convert to PIL Image
+        img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+        
+        # Return image and metadata needed for coordinate conversion
+        return img, monitor["left"], monitor["top"], img.width, img.height
+

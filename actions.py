@@ -7,6 +7,8 @@ import guardrails
 import logging
 import pygetwindow as gw
 import threading
+import screen_capture
+import grounding
 
 APP_WHITELIST = {
     "notepad": "notepad.exe",
@@ -126,3 +128,33 @@ def open_url(url: str) -> str:
         return f"Opened URL: {url}"
     except Exception as e:
         return f"Failed to open URL: {e}"
+
+def click_element(description: str) -> str:
+    if check_kill_switch():
+        return "Action cancelled by kill switch."
+        
+    try:
+        # Capture screen with metadata to calculate absolute coordinates
+        image, offset_left, offset_top, width, height = screen_capture.capture_screen_with_metadata()
+        
+        # Find the click target using vision grounding
+        target = grounding.find_click_target(image, description)
+        if not target:
+            return f"I couldn't find '{description}' on your screen."
+            
+        pixel_x, pixel_y = target
+        
+        # Convert screenshot-relative pixel coordinates to absolute screen coordinates
+        absolute_x = pixel_x + offset_left
+        absolute_y = pixel_y + offset_top
+        
+        logging.debug(f"Computed absolute coordinates for '{description}': ({absolute_x}, {absolute_y})")
+        
+        # Final kill switch check right before clicking
+        if check_kill_switch():
+            return "Action cancelled by kill switch."
+            
+        pyautogui.click(absolute_x, absolute_y)
+        return f"Clicked '{description}' at ({absolute_x}, {absolute_y})."
+    except Exception as e:
+        return f"Failed to click element: {e}"

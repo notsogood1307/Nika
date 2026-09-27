@@ -8,7 +8,8 @@ RISK_TIERS = {
     "open_app": 1,
     "type_text": 2,
     "open_url": 3,
-    "press_key": 3
+    "press_key": 3,
+    "click_element": 3
 }
 
 def trigger_kill_switch():
@@ -35,7 +36,10 @@ def request_confirmation(action_name: str, args: dict, input_fn, print_fn, speak
         
     # Build prompt
     args_str = ", ".join([f"{k}='{v}'" for k, v in args.items()])
-    if tier == 2:
+    
+    if action_name == "click_element" and "description" in args:
+        prompt_msg = f"I want to click on '{args['description']}' — ok? Say or type yes or no."
+    elif tier == 2:
         prompt_msg = f"I want to {action_name} with ({args_str}) — ok? Say or type yes, no, or 'always allow' to skip asking again this session."
     else:
         prompt_msg = f"I want to {action_name} with ({args_str}) — ok? Say or type yes or no."
