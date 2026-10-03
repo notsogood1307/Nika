@@ -109,8 +109,6 @@ def get_response_with_screen(user_message: str, memory_context: str, recent_hist
         
         # Build the question
         question = user_message
-        if memory_context:
-            question = f"Memory context:\n{memory_context}\n\nQuestion: {question}"
             
         logging.debug(f"Sending vision question: {question}")
         

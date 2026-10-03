@@ -14,6 +14,7 @@ def find_click_target(image: Image.Image, description: str) -> tuple | None:
         orig_width, orig_height = image.size
         # Resize image to prevent token limit errors
         if max(image.width, image.height) > 960:
+            image = image.copy()
             image.thumbnail((960, 960))
             
         result = model.point(image, description)
@@ -34,6 +35,7 @@ def find_click_target(image: Image.Image, description: str) -> tuple | None:
 def describe_screen(image: Image.Image, question: str) -> str:
     try:
         if max(image.width, image.height) > 960:
+            image = image.copy()
             image.thumbnail((960, 960))
         result = model.query(image, question)
         if isinstance(result, dict) and "answer" in result:
